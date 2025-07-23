@@ -42,7 +42,7 @@ func (p *ProductRepository) UpsertProduct(ctx context.Context, name string, expi
 	return &newProduct, nil
 }
 
-func (p *ProductRepository) GetProductById(ctx context.Context, productID string) (*model.Product, error) {
+func (p *ProductRepository) GetProductByID(ctx context.Context, productID string) (*model.Product, error) {
 	var product model.Product
 
 	err := p.db.WithContext(ctx).Where("id = ?", productID).First(&product).Error
@@ -52,6 +52,40 @@ func (p *ProductRepository) GetProductById(ctx context.Context, productID string
 
 	return &product, nil
 }
+
+func (p *ProductRepository) GetProductByName(ctx context.Context, productName string) (*model.Product, error) {
+	var product model.Product
+	
+	err := p.db.WithContext(ctx).Where("name = ?", productName).First(&product).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to get product by name %s: %w", productName, err)
+	}
+	
+	return &product, nil
+}
+
+func (p *ProductRepository) ListProducts(
+	ctx context.Context, 
+	limit int, 
+	lastCreatedAt time.Time, 
+	lastProductID string,
+) ([]*model.Product, error) {
+	var products []*model.Product
+	
+	err := p.db.WithContext(ctx).
+		Where("(created_at, id) > (?,?)", lastCreatedAt, lastProductID).
+		Order("created_at, id").
+		Limit(limit).
+		Find(&products).
+		Error
+	
+	if err != nil {
+		return nil, fmt.Errorf("failed to list products: %w", err)
+	}
+	
+	return products, nil
+}
+
 
 func (p *ProductRepository) UpdateProduct(
 	ctx context.Context,

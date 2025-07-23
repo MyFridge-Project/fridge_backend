@@ -38,8 +38,7 @@ func (f *FridgeRepository) CreateFridge(ctx context.Context, name string, userID
 		return nil, fmt.Errorf("failed to create fridge-user link: %w", err)
 	}
 	
-	fridge = &newFridge
-	return fridge, nil
+	return &newFridge, nil
 }
 
 func (f *FridgeRepository) GetFridgeByID(ctx context.Context, fridgeID string) (*model.Fridge, error) {
@@ -70,10 +69,35 @@ func (f* FridgeRepository) ListUserFridges(
 		Find(&fridges).
 		Error
 	if err != nil {
-		return nil, fmt.Errorf("failed to list user fridges: %w", err)
+		return nil, fmt.Errorf("failed to list fridges for user %s: %w", userID, err)
 	}
 	
 	return fridges, nil
+}
+
+func (f *FridgeRepository) ListFridgeUsers(
+	ctx context.Context, 
+	limit int, 
+	fridgeID string,
+	lastCreatedAt time.Time,
+	lastUserID string,
+) ([]*model.User, error) {
+	var users []*model.User
+	
+	err := f.db.WithContext(ctx).
+		Joins("JOIN fridge_users fu ON fu.user_id = users.id").
+		Where("fu.fridge_id = ?", fridgeID).
+		Where("(users.created_at, users.id) > (?, ?)", lastCreatedAt, lastUserID).
+		Order("users.created_at, users.id").
+		Limit(limit).
+		Find(&users).
+		Error
+	
+	if err != nil {
+		return nil, fmt.Errorf("failed to list users for fridge %s: %w", fridgeID, err)
+	}
+	
+	return users, nil
 }
 
 func (f *FridgeRepository) UpdateFridge(
