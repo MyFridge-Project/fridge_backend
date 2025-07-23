@@ -5,24 +5,37 @@ import (
 )
 
 type Fridge struct {
-	Id        string    `json:"id" gorm:"id"`
-	Name      string    `json:"name" gorm:"name"`
-	CreatedAt time.Time `json:"created_at" gorm:"created_at"`
-	UpdatedAt time.Time `json:"updated_at" gorm:"updated_at"`
+	ID        string    `json:"id" gorm:"type:uuid;primaryKey"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type Product struct {
-	Id        string    `json:"id" gorm:"id"`
-	Name      string    `json:"name" gorm:"name"`
-	CreatedAt time.Time `json:"created_at" gorm:"created_at"`
-	UpdatedAt time.Time `json:"updated_at" gorm:"updated_at"`
+	ID             string     `json:"id" gorm:"type:uuid;primaryKey"`
+	Name           string     `json:"name"`
+	ExpirationTime *time.Time `json:"expiration_time"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
 type ProductInFridge struct {
-	FridgeId       string    `json:"fridge_id" gorm:"fridge_id"`
-	ProductId      string    `json:"product_id" gorm:"product_id"`
-	Quantity       float64   `json:"quantity" gorm:"quantity"`
-	ProductionDate *time.Time `json:"production_date" gorm:"production_date"`
-	ExpirationDate *time.Time `json:"expiration_date" gorm:"expiration_date"`
-	AddedAt        time.Time `json:"id" gorm:"id"`
+	FridgeID       string     `json:"fridge_id" gorm:"type:uuid;primaryKey"`
+	ProductID      string     `json:"product_id" gorm:"type:uuid;primaryKey"`
+	Quantity       float64    `json:"quantity"`
+	ProductionDate *time.Time `json:"production_date"`
+	ExpirationDate *time.Time `json:"expiration_date"`
+	AddedAt        time.Time  `json:"added_at"`
+}
+
+type FridgeUser struct {
+	FridgeID  string    `json:"fridge_id" gorm:"type:uuid;primaryKey"`
+	UserID    string    `json:"user_id" gorm:"type:uuid;primaryKey"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type User struct {
+	ID string `json:"id"`
 }
