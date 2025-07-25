@@ -13,6 +13,10 @@ type FridgeRepository struct {
 	db *gorm.DB
 }
 
+func NewFridgeRepository(db *gorm.DB) *FridgeRepository {
+	return &FridgeRepository{db: db}
+}
+
 func (f *FridgeRepository) CreateFridge(ctx context.Context, name string, userID string) (fridge *model.Fridge, err error) {
 	tx := f.db.WithContext(ctx).Begin()
 	
@@ -51,53 +55,21 @@ func (f *FridgeRepository) GetFridgeByID(ctx context.Context, fridgeID string) (
 	return &fridge, nil
 }
 
-func (f* FridgeRepository) ListUserFridges(
-	ctx context.Context, 
-	limit int, 
-	userID string,
-	lastCreatedAt time.Time,
-	lastFridgeID string,
-) ([]*model.Fridge, error) {
+func (f *FridgeRepository) ListFridges(ctx context.Context, limit int, lastCreatedAt time.Time, lastFridgeID string) ([]*model.Fridge, error) {
 	var fridges []*model.Fridge
 	
 	err := f.db.WithContext(ctx).
-		Joins("JOIN fridge_users fu ON fu.fridge_id = fridges.id").
-		Where("fu.user_id = ?", userID).
-		Where("(fridges.created_at, fridges.id) > (?, ?)", lastCreatedAt, lastFridgeID).
-		Order("fridges.created_at, fridges.id").
+		Where("(created_at, id) > (?, ?)", lastCreatedAt, lastFridgeID).
+		Order("created_at, id").
 		Limit(limit).
 		Find(&fridges).
 		Error
+	
 	if err != nil {
-		return nil, fmt.Errorf("failed to list fridges for user %s: %w", userID, err)
+		return nil, fmt.Errorf("failed to list fridges: %w", err)
 	}
 	
 	return fridges, nil
-}
-
-func (f *FridgeRepository) ListFridgeUsers(
-	ctx context.Context, 
-	limit int, 
-	fridgeID string,
-	lastCreatedAt time.Time,
-	lastUserID string,
-) ([]*model.User, error) {
-	var users []*model.User
-	
-	err := f.db.WithContext(ctx).
-		Joins("JOIN fridge_users fu ON fu.user_id = users.id").
-		Where("fu.fridge_id = ?", fridgeID).
-		Where("(users.created_at, users.id) > (?, ?)", lastCreatedAt, lastUserID).
-		Order("users.created_at, users.id").
-		Limit(limit).
-		Find(&users).
-		Error
-	
-	if err != nil {
-		return nil, fmt.Errorf("failed to list users for fridge %s: %w", fridgeID, err)
-	}
-	
-	return users, nil
 }
 
 func (f *FridgeRepository) UpdateFridge(

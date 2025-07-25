@@ -21,3 +21,7 @@ func (r* Repository) Product() ProductProvider {
 func (r* Repository) ProductInFridge() ProductInFridgeProvider {
 	return &ProductInFridgeRepository{db: r.db}
 }
+
+func (r *Repository) FridgeUser() FridgeUserProvider {
+	return &FridgeUserRepository{db: r.db}
+}

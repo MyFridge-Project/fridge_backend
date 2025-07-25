@@ -13,7 +13,7 @@ type Fridge struct {
 
 type Product struct {
 	ID             string     `json:"id" gorm:"type:uuid;primaryKey"`
-	Name           string     `json:"name" gorm:"unique"J`
+	Name           string     `json:"name" gorm:"unique"`
 	ExpirationTime *time.Time `json:"expiration_time"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`

@@ -16,9 +16,7 @@ type RepositoryProvider interface {
 type FridgeProvider interface {
 	CreateFridge(context.Context, string, string) (*model.Fridge, error)
 	GetFridgeByID(context.Context, string) (*model.Fridge, error)
-	// AddUserToFridge() (, error)
-	ListUserFridges(context.Context, int, string, time.Time, string) ([]*model.Fridge, error)
-	ListFridgeUsers(context.Context, int, string, time.Time, string) ([]*model.User, error)
+	ListFridges(context.Context, int, time.Time, string) ([]*model.Fridge, error)
 	UpdateFridge(context.Context, string, func(*model.Fridge)(*model.Fridge, error)) (*model.Fridge, error)
 	DeleteFridge(context.Context, string) error
 }
@@ -38,4 +36,11 @@ type ProductInFridgeProvider interface {
 	ListProductsInFridge(context.Context, string, int, time.Time, string) ([]*model.ProductInFridge, error)
 	UpdateProductInFridge(context.Context, string, string, func(*model.ProductInFridge) (*model.ProductInFridge, error)) (*model.ProductInFridge, error)
 	DeleteProductFromFridge(context.Context, string, string) (error)
+}
+
+type FridgeUserProvider interface {
+	AddUserToFridge(context.Context, string, string, string) (*model.FridgeUser, error)
+	ListUserFridges(context.Context, int, string, time.Time, string) ([]*model.Fridge, error)
+	ListFridgeUsers(context.Context, int, string, time.Time, string) ([]*model.User, error)
+	DeleteUserFromFridge(context.Context, string, string) error
 }
