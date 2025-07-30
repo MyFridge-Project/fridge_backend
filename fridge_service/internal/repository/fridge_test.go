@@ -12,19 +12,26 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/MyFridge-Project/fridge_backend/fridge_service/pkg/model"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func DBMock(t *testing.T) (*sql.DB, *gorm.DB, sqlmock.Sqlmock) {
 	sqldb, mock, err := sqlmock.New()
 	require.NoError(t, err)
-
+	
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT VERSION()")).
+        WillReturnRows(sqlmock.NewRows([]string{"VERSION()"}).AddRow("8.0.30"))
+	
 	gormdb, err := gorm.Open(mysql.New(mysql.Config{
 		Conn: sqldb,
-	}), &gorm.Config{})
+	}), &gorm.Config{
+		Logger: logger.Discard,
+	})
 	require.NoError(t, err)
 
 	return sqldb, gormdb, mock
@@ -33,22 +40,24 @@ func DBMock(t *testing.T) (*sql.DB, *gorm.DB, sqlmock.Sqlmock) {
 func TestCreateFridge(t *testing.T) {
 	sqldb, gormdb, mock := DBMock(t)
 	defer sqldb.Close()
-
+	
 	repo := NewFridgeRepository(gormdb)
 	ctx := context.Background()
 	var name = "TestFridge"
 	var userID = "user-123"
-	var fridgeID int64 = 52
 	var role = "admin"
-
+	//fridgeID := uuid.New().String()
+	
+	//mock.ExpectQuery(regexp.QuoteMeta("SELECT VERSION()"))
+	
 	mock.ExpectBegin()
 
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO `fridges`")).
 		WithArgs(sqlmock.AnyArg(), name, sqlmock.AnyArg(), sqlmock.AnyArg()).
-		WillReturnResult(sqlmock.NewResult(fridgeID, 1))
+		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO `fridge_users`")).
-		WithArgs(fmt.Sprintf("%d", fridgeID), userID, role, sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WithArgs(sqlmock.AnyArg(), userID, role, sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	mock.ExpectCommit()
@@ -58,7 +67,7 @@ func TestCreateFridge(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, fridge)
 	require.Equal(t, name, fridge.Name)
-	require.Equal(t, fmt.Sprintf("%d", fridgeID), fridge.ID)
+	//require.Equal(t, fridgeID, fridge.ID)
 
 	require.NoError(t, mock.ExpectationsWereMet())
 }
@@ -84,8 +93,8 @@ func TestGetFridgeByID_Success(t *testing.T) {
 		time.Now(),
 	)
 
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `fridges` WHERE id = ?")).
-		WithArgs(fridgeID).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `fridges` WHERE id = ? ORDER BY `fridges`.`id` LIMIT ?")).
+		WithArgs(fridgeID, 1).
 		WillReturnRows(rows)
 
 	fridge, err := repo.GetFridgeByID(ctx, fridgeID)
@@ -107,8 +116,8 @@ func TestGetFridgeByID_Fail(t *testing.T) {
 	var fridge *model.Fridge
 	var fridgeID = "nonexistent"
 
-	mock.ExpectQuery("SELECT * FROM `fridges` WHERE id = ?").
-		WithArgs(fridgeID).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `fridges` WHERE id = ? ORDER BY `fridges`.`id` LIMIT ?")).
+		WithArgs(fridgeID, 1).
 		WillReturnError(gorm.ErrRecordNotFound)
 
 	fridge, err := repo.GetFridgeByID(ctx, fridgeID)
@@ -239,17 +248,133 @@ func TestListFridges_Fail(t *testing.T) {
 }
 
 func TestUpdateFridge_Success(t *testing.T) {
+	sqldb, gormdb, mock := DBMock(t)
+	defer sqldb.Close()
 	
+	repo := NewFridgeRepository(gormdb)
+	ctx := context.Background()
+	fridgeID := "1"
+	oldName := "SomeName"
+	now := time.Now()
+	
+	newName := "SomeNewName"
+	updateFn := func(fridge *model.Fridge) (*model.Fridge, error) {
+		if fridge == nil {
+			return nil, fmt.Errorf("fridge to update cannot be nil")
+		}
+		
+		fridge.Name = newName
+		return fridge, nil
+	}
+	
+	selectRows := mock.NewRows([]string{"id", "name", "created_at", "updated_at"}).
+		AddRow(fridgeID, oldName, now, now)
+	
+	mock.ExpectBegin()
+	
+	expectQuery1 := "SELECT * FROM `fridges` WHERE id = ? ORDER BY `fridges`.`id` LIMIT ?"
+	mock.ExpectQuery(regexp.QuoteMeta(expectQuery1)).
+		WithArgs(fridgeID, 1).
+		WillReturnRows(selectRows)
+	
+	expectQuery2 := "UPDATE `fridges` SET `name`=?,`created_at`=?,`updated_at`=? WHERE `id` = ?"
+	mock.ExpectExec(regexp.QuoteMeta(expectQuery2)).
+		WithArgs(newName, sqlmock.AnyArg(), sqlmock.AnyArg(), fridgeID).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	
+	mock.ExpectCommit()
+	
+	updatedFridge, err := repo.UpdateFridge(ctx, fridgeID, updateFn)
+	
+	require.NoError(t, err)
+	require.NotNil(t, updatedFridge)
+	
+	assert.Equal(t, fridgeID, updatedFridge.ID)
+	assert.Equal(t, newName, updatedFridge.Name)
+	
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestUpdateFridge_Fail(t *testing.T) {
-
+	sqldb, gormdb, mock := DBMock(t)
+	defer sqldb.Close()
+	
+	repo := NewFridgeRepository(gormdb)
+	ctx := context.Background()
+	fridgeID := "nonexistent"
+	
+	updateFn := func(fridge *model.Fridge) (*model.Fridge, error) {return fridge, nil}
+	
+	mock.ExpectBegin()
+	
+	expectedQuery := "SELECT * FROM `fridges` WHERE id = ? ORDER BY `fridges`.`id` LIMIT ?"
+	mock.ExpectQuery(regexp.QuoteMeta(expectedQuery)).
+		WithArgs(fridgeID, 1).
+		WillReturnError(gorm.ErrRecordNotFound)
+	
+	mock.ExpectRollback()
+	
+	fridge, err := repo.UpdateFridge(ctx, fridgeID, updateFn)
+	
+	require.Error(t, err)
+	require.Nil(t, fridge)
+	
+	assert.True(t, errors.Is(err, gorm.ErrRecordNotFound))
+	
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestDeleteFridge_Success(t *testing.T) {
-
+	sqldb, gormdb, mock := DBMock(t)
+	defer sqldb.Close()
+	
+	repo := NewFridgeRepository(gormdb)
+	ctx := context.Background()
+	fridgeID := "1"
+	
+	countRows := sqlmock.NewRows([]string{"count"}).AddRow(1)
+	
+	mock.ExpectBegin()
+	
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT count(*) FROM `fridges` WHERE id = ?")).
+		WithArgs(fridgeID).
+		WillReturnRows(countRows)
+	
+	mock.ExpectExec(regexp.QuoteMeta("DELETE FROM `product_in_fridges` WHERE fridge_id =  ?")).
+		WithArgs(fridgeID).WillReturnResult(sqlmock.NewResult(0, 1))
+	
+	mock.ExpectExec(regexp.QuoteMeta("DELETE FROM `fridge_users` WHERE fridge_id = ?")).
+		WithArgs(fridgeID).WillReturnResult(sqlmock.NewResult(0, 1))
+	
+	mock.ExpectExec(regexp.QuoteMeta("DELETE FROM `fridges` WHERE id = ?")).
+		WithArgs(fridgeID).WillReturnResult(sqlmock.NewResult(0, 1))
+	
+	mock.ExpectCommit()
+	
+	err := repo.DeleteFridge(ctx, fridgeID)
+	
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestDeleteFridge_Fail(t *testing.T) {
-
+	sqldb, gormdb, mock := DBMock(t)
+	defer sqldb.Close()
+	
+	repo :=  NewFridgeRepository(gormdb)
+	ctx := context.Background()
+	fridgeID := "nonexistent"
+	
+	mock.ExpectBegin()
+	
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT count(*) FROM `fridges` WHERE id = ?")).
+		WithArgs(fridgeID).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+	
+	mock.ExpectRollback()
+	
+	err := repo.DeleteFridge(ctx, fridgeID)
+	
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+	require.NoError(t, mock.ExpectationsWereMet())
 }

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/MyFridge-Project/fridge_backend/fridge_service/pkg/model"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -25,6 +26,7 @@ func (f *FridgeRepository) CreateFridge(ctx context.Context, name string, userID
 	}()
 	
 	newFridge := model.Fridge{
+		ID: uuid.New().String(),
 		Name: name,
 	}
 	
@@ -106,6 +108,15 @@ func (f *FridgeRepository) DeleteFridge(ctx context.Context, fridgeID string) (e
 	defer func() {
 		err = f.finishTransaction(err, tx)
 	}()
+	
+	var count int64
+	if err := tx.Model(&model.Fridge{}).Where("id = ?", fridgeID).Count(&count).Error; err != nil {
+		return fmt.Errorf("failed to check fridge existence: %w", err)
+	}
+	
+	if count == 0 {
+		return fmt.Errorf("fridge with id %s not found: %w", fridgeID, gorm.ErrRecordNotFound)
+	}
 	
 	if err = tx.Where("fridge_id = ?", fridgeID).Delete(&model.ProductInFridge{}).Error; err != nil {
 		return fmt.Errorf("failed to delete all products in fridge with id %s: %w", fridgeID, err)
